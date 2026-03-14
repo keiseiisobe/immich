@@ -8,14 +8,14 @@ The mobile app follows a "Clean Architecture" inspired pattern, organized into f
 
 ### 1. Domain Layer (`lib/domain`)
 The **Brain** of the application. It contains the core business logic and is designed to be independent of external factors like the database or API.
-- **Models**: Plain Dart classes representing business entities.
+- **[Models](./data-patterns.md)**: Plain Dart classes representing business entities.
 - **Interfaces**: Definitions for data operations (contracts).
 - **Services**: Orchestrators that implement complex business rules by coordinating multiple repositories.
 
 ### 2. Infrastructure Layer (`lib/infrastructure`)
 The **Implementation** details. This layer handles the "how" of data retrieval and persistence.
 - **Repositories**: Concrete implementations of domain interfaces.
-- **Entities**: Database schemas (Isar or Drift).
+- **[Entities](./data-patterns.md)**: Database schemas (Isar or Drift).
 - **Loaders**: Specialized components for handling complex data loading (e.g., background isolates).
 
 ### 3. Presentation Layer (`lib/presentation` & `lib/pages`)
