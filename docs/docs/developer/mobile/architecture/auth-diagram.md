@@ -113,6 +113,6 @@ classDiagram
 The `isAuthenticated` property in `AuthState` is designed to be **optimistic but verified**:
 
 -   **Optimistic UI**: If a token exists in the `Store`, the app sets `isAuthenticated: true` to allow the user into the app without a splash screen delay.
--   **Routing Enforcement (`AuthGuard`)**: Every time the user navigates or the app wakes up, the `AuthGuard` proactively calls the server to validate the token.
--   **Passive Validation (401 Handling)**: If a token expires while the user is active, any subsequent API call will return an HTTP 401 (Unauthorized). This error is caught globally, triggering the `AuthNotifier` to clear the `Store` and reset `isAuthenticated` to `false`, which forces a redirect to the Login page.
--   **Server-Side Security**: The ultimate source of truth is always the Immich Server. No sensitive data can be accessed with an expired token, regardless of the local `isAuthenticated` value.
+-   **Routing Enforcement (`AuthGuard`)**: The primary enforcement point. Every time the user navigates or the app wakes up, the `AuthGuard` proactively calls the server to validate the token. If validation fails, it triggers the `router.replaceAll([const LoginRoute()])`.
+-   **On-Page Session Expiry**: If a token expires while a user is already on a page (without navigating), the app does not currently use a global reactive redirect. The user will remain on the page until an action triggers a 401 error (handled explicitly by the calling service) or until they navigate, at which point the `AuthGuard` will intercept them.
+-   **Server-Side Security**: Regardless of the UI state, the Immich Server remains the source of truth and will reject any requests made with an expired token.
