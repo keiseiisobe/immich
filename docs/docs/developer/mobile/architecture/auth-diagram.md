@@ -115,4 +115,45 @@ The `isAuthenticated` property in `AuthState` is designed to be **optimistic but
 -   **Optimistic UI**: If a token exists in the `Store`, the app sets `isAuthenticated: true` to allow the user into the app without a splash screen delay.
 -   **Routing Enforcement (`AuthGuard`)**: The primary enforcement point. Every time the user navigates or the app wakes up, the `AuthGuard` proactively calls the server to validate the token. If validation fails, it triggers the `router.replaceAll([const LoginRoute()])`.
 -   **On-Page Session Expiry**: If a token expires while a user is already on a page (without navigating), the app does not currently use a global reactive redirect. The user will remain on the page until an action triggers a 401 error (handled explicitly by the calling service) or until they navigate, at which point the `AuthGuard` will intercept them.
--   **Server-Side Security**: Regardless of the UI state, the Immich Server remains the source of truth and will reject any requests made with an expired token.
+- **Server-Side Security**: Regardless of the UI state, the Immich Server remains the source of truth and will reject any requests made with an expired token.
+
+## Session Resumption Flow (Re-authentication)
+
+This diagram describes the process of automatically logging the user back in when the app is launched.
+
+```mermaid
+sequenceDiagram
+    participant S as SplashScreenPage
+    participant AN as AuthNotifier
+    participant ST as Store
+    participant US as UserService
+    participant SRV as Immich Server
+    participant R as Router
+
+    S->>S: initState()
+    S->>AN: setOpenApiServiceEndpoint()
+    S->>ST: tryGet(accessToken, serverUrl, endpoint)
+    ST-->>S: credentials found
+
+    alt Credentials Present
+        S->>AN: saveAuthInfo(accessToken)
+        AN->>US: refreshMyUser()
+        US->>SRV: GET /user/me (with token)
+
+        alt Token Valid (200 OK)
+            SRV-->>US: UserDto
+            US-->>AN: UserDto
+            AN->>AN: Update AuthState(isAuthenticated: true)
+            S->>R: replaceRoute(TabShellRoute)
+        else Token Invalid (401/Error)
+            SRV-->>US: Error
+            US-->>AN: null/error
+            AN->>AN: logout()
+            AN->>ST: Clear credentials
+            S->>R: replaceRoute(LoginRoute)
+        end
+    else Credentials Missing
+        S->>R: replaceRoute(LoginRoute)
+    end
+```
+
