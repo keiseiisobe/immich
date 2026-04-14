@@ -157,3 +157,68 @@ sequenceDiagram
     end
 ```
 
+## User Data Synchronization Flow
+
+This diagram illustrates how user profile data (`UserDto`) is propagated through the system and stored across multiple layers.
+
+```mermaid
+flowchart TD
+    subgraph Server
+        API[Immich Server API]
+    end
+
+    subgraph "Infrastructure (Data Layer)"
+        REPO[UserApiRepository]
+        STORE[(Store - Hive/Drift)]
+        ISAR[(Isar Database)]
+    end
+
+    subgraph "Domain (Business Logic)"
+        US[UserService]
+    end
+
+    subgraph "Presentation (State Management)"
+        AN[AuthNotifier]
+        CUP[currentUserProvider]
+        AS[AuthState]
+    end
+
+    subgraph UI
+        VIEW[Profile/Settings Views]
+    end
+
+    %% Sync Flow (Online)
+    API -- "UserDto (JSON)" --> REPO
+    REPO -- "UserDto (Model)" --> US
+    
+    US -- "1. Persist" --> STORE
+    US -- "2. Sync Records" --> ISAR
+    
+    US -- "3. Return" --> AN
+    AN -- "Update" --> AS
+    
+    %% Startup / Hydration Flow
+    STORE -. "Hydrate on Startup" .-> AN
+    
+    STORE -- "Watch Stream" --> CUP
+    
+    AS -- "ref.watch" --> VIEW
+    CUP -- "ref.watch" --> VIEW
+```
+
+### Data Storage Purpose
+1.  **Store (Hive/Drift)**: Used for fast key-value access and session resumption. It is the source for the `currentUserProvider` stream.
+2.  **Isar Database**: Used for relational data and cross-referencing. It stores the `User` entity which can include all known users (partners, contributors), enabling offline gallery features and metadata association.
+3.  **AuthState**: Holds the volatile state of the *current active session*. It combines server profile data with device-specific information (like `deviceId`).
+
+### Why the Redundancy?
+
+This "double storage" (in-memory state vs. persistent database) is a common architectural pattern in the mobile app for several reasons:
+
+*   **User (The Record)**: Acts as the "source of truth" for the local database. It allows the app to show who owns which photo, even for users other than yourself (like your partner or contributors in a shared album).
+*   **AuthState (The Session)**: Acts as the "source of truth" for the current UI state. It answers the question: *"Who is currently using the app right now, and what are they allowed to do?"*
+
+**In summary:** `AuthState` is about the **current session** (Login status + My Profile), while the Isar `User` entity is about **persistent records** (My Profile + Others' Profiles + Quotas). When the user profile is refreshed, the app updates the persistent record first, then "hydrates" that change into the `AuthState` so the UI reflects it immediately.
+
+
+
